@@ -67,7 +67,7 @@ public:
     TextRange trimmedText() const { return fTextExcludingSpaces; }
     TextRange textWithNewlines() const { return fTextIncludingNewlines; }
     TextRange text() const { return fText; }
-    ClusterRange clusters() const { return fClusterRange; }
+    //ClusterRange clusters() const { return fClusterRange; }
     ClusterRange clustersWithSpaces() const { return fGhostClusterRange; }
     Run* ellipsis() const { return fEllipsis.get(); }
     InternalLineMetrics sizes() const { return fSizes; }

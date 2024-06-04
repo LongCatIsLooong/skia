@@ -631,6 +631,8 @@ void TextLine::createEllipsis(SkScalar maxWidth, const SkString& ellipsis, bool)
     }
 }
 
+// Shape the given ellipsis string into a single Run, using the text style
+// associated with the cluster.
 std::unique_ptr<Run> TextLine::shapeEllipsis(const SkString& ellipsis, const Cluster* cluster) {
 
     class ShapeHandler final : public SkShaper::RunHandler {

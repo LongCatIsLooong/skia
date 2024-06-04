@@ -274,9 +274,7 @@ std::tuple<Cluster*, size_t, SkScalar> TextWrapper::trimStartSpaces(Cluster* end
 }
 
 // TODO: refactor the code for line ending (with/without ellipsis)
-void TextWrapper::breakTextIntoLines(ParagraphImpl* parent,
-                                     SkScalar maxWidth,
-                                     const AddLineToParagraph& addLine) {
+void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
     fHeight = 0;
     fMinIntrinsicWidth = std::numeric_limits<SkScalar>::min();
     fMaxIntrinsicWidth = std::numeric_limits<SkScalar>::min();
@@ -387,15 +385,13 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent,
         // In case of a force wrapping we don't have a break cluster and have to use the end cluster
         text.end = std::max(text.end, textExcludingSpaces.end);
 
-        addLine(textExcludingSpaces,
-                text,
-                textIncludingNewlines, clusters, clustersWithGhosts, widthWithSpaces,
-                fEndLine.startPos(),
-                fEndLine.endPos(),
-                SkVector::Make(0, fHeight),
-                SkVector::Make(fEndLine.width(), lineHeight),
-                fEndLine.metrics(),
-                needEllipsis && !fHardLineBreak);
+        parent->addLine(textExcludingSpaces,
+                        text,
+                        textIncludingNewlines, clusters, clustersWithGhosts, widthWithSpaces,
+                        SkVector::Make(0, fHeight),
+                        SkVector::Make(fEndLine.width(), lineHeight),
+                        fEndLine.metrics(),
+                        needEllipsis && !fHardLineBreak);
 
         softLineMaxIntrinsicWidth += widthWithSpaces;
 
@@ -485,18 +481,16 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent,
         }
 
         ClusterRange clusters(fEndLine.breakCluster() - start, fEndLine.endCluster() - start);
-        addLine(fEndLine.breakCluster()->textRange(),
-                fEndLine.breakCluster()->textRange(),
-                fEndLine.endCluster()->textRange(),
-                clusters,
-                clusters,
-                0,
-                0,
-                0,
-                SkVector::Make(0, fHeight),
-                SkVector::Make(0, fEndLine.metrics().height()),
-                fEndLine.metrics(),
-                needEllipsis);
+        parent->addLine(fEndLine.breakCluster()->textRange(),
+                        fEndLine.breakCluster()->textRange(),
+                        fEndLine.endCluster()->textRange(),
+                        clusters,
+                        clusters,
+                        0,
+                        SkVector::Make(0, fHeight),
+                        SkVector::Make(0, fEndLine.metrics().height()),
+                        fEndLine.metrics(),
+                        needEllipsis);
         fHeight += fEndLine.metrics().height();
         parent->lines().back().setMaxRunMetrics(maxRunMetrics);
     }

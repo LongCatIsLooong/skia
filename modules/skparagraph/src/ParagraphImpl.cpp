@@ -618,10 +618,19 @@ void ParagraphImpl::breakShapedTextIntoLines(SkScalar maxWidth) {
         advance.fY = metrics.height();
         auto clusterRange = ClusterRange(0, trailingSpaces);
         auto clusterRangeWithGhosts = ClusterRange(0, this->clusters().size() - 1);
-        this->addLine(SkPoint::Make(0, 0), advance,
-                      textExcludingSpaces, textRange, textRange,
-                      clusterRange, clusterRangeWithGhosts, run.advance().x(),
-                      metrics);
+        this->addLine(
+            textExcludingSpaces,
+            textRange,
+            textRange,
+
+            clusterRange,
+            clusterRangeWithGhosts,
+            run.advance().x(),
+
+            SkPoint::Make(0, 0),
+            advance,
+            metrics,
+            false);
 
         fLongestLine = nearlyZero(advance.fX) ? run.advance().fX : advance.fX;
         fHeight = advance.fY;
@@ -635,31 +644,12 @@ void ParagraphImpl::breakShapedTextIntoLines(SkScalar maxWidth) {
     }
 
     TextWrapper textWrapper;
-    textWrapper.breakTextIntoLines(
-            this,
-            maxWidth,
-            [&](TextRange textExcludingSpaces,
-                TextRange text,
-                TextRange textWithNewlines,
-                ClusterRange clusters,
-                ClusterRange clustersWithGhosts,
-                SkScalar widthWithSpaces,
-                size_t startPos,
-                size_t endPos,
-                SkVector offset,
-                SkVector advance,
-                InternalLineMetrics metrics,
-                bool addEllipsis) {
-                // TODO: Take in account clipped edges
-                auto& line = this->addLine(offset, advance, textExcludingSpaces, text, textWithNewlines, clusters, clustersWithGhosts, widthWithSpaces, metrics);
-                if (addEllipsis) {
-                    line.createEllipsis(maxWidth, this->getEllipsis(), true);
-                }
-                fLongestLine = std::max(fLongestLine, nearlyZero(advance.fX) ? widthWithSpaces : advance.fX);
-            });
 
-    fHeight = textWrapper.height();
+    // TODO: Take in account clipped edges
+    textWrapper.breakTextIntoLines(this, maxWidth);
+
     fWidth = maxWidth;
+    fHeight = textWrapper.height();
     fMaxIntrinsicWidth = textWrapper.maxIntrinsicWidth();
     fMinIntrinsicWidth = textWrapper.minIntrinsicWidth();
     fAlphabeticBaseline = fLines.empty() ? fEmptyMetrics.alphabeticBaseline() : fLines.front().alphabeticBaseline();
@@ -760,20 +750,31 @@ BlockRange ParagraphImpl::findAllBlocks(TextRange textRange) {
     return { begin, end + 1 };
 }
 
-TextLine& ParagraphImpl::addLine(SkVector offset,
-                                 SkVector advance,
-                                 TextRange textExcludingSpaces,
-                                 TextRange text,
-                                 TextRange textIncludingNewLines,
-                                 ClusterRange clusters,
-                                 ClusterRange clustersWithGhosts,
-                                 SkScalar widthWithSpaces,
-                                 InternalLineMetrics sizes) {
+// Turns the output of the line breaking algorithm into an ellipsized (if needed),
+// re-ordered TextLine object and adds it to fLines.
+//
+// This method performs ellipsizing, and implicitly Bidi-reordering
+// (in the TextLine constructor).
+void ParagraphImpl::addLine(TextRange textExcludingSpaces,
+                            TextRange text,
+                            TextRange textIncludingNewLines,
+                            ClusterRange clusters,
+                            ClusterRange clustersWithGhosts,
+                            SkScalar widthWithSpaces,
+                            SkVector offset,
+                            SkVector advance,
+                            InternalLineMetrics sizes,
+                            bool addEllipsis) {
     // Define a list of styles that covers the line
     auto blocks = findAllBlocks(textExcludingSpaces);
-    return fLines.emplace_back(this, offset, advance, blocks,
-                               textExcludingSpaces, text, textIncludingNewLines,
-                               clusters, clustersWithGhosts, widthWithSpaces, sizes);
+    fLongestLine = std::max(fLongestLine, nearlyZero(advance.fX) ? widthWithSpaces : advance.fX);
+    auto line = TextLine(this, offset, advance, blocks,
+                        textExcludingSpaces, text, textIncludingNewLines,
+                        clusters, clustersWithGhosts, widthWithSpaces, sizes);
+    if (addEllipsis) {
+        line.createEllipsis(fWidth, this->getEllipsis(), true);
+    }
+    fLines.emplace_back(std::move(line));
 }
 
 // Returns a vector of bounding boxes that enclose all text between

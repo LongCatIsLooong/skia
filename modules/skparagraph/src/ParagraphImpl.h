@@ -121,10 +121,16 @@ public:
 
     size_t lineNumber() override { return fLines.size(); }
 
-    TextLine& addLine(SkVector offset, SkVector advance,
-                      TextRange textExcludingSpaces, TextRange text, TextRange textIncludingNewlines,
-                      ClusterRange clusters, ClusterRange clustersWithGhosts, SkScalar widthWithSpaces,
-                      InternalLineMetrics sizes);
+    void addLine(TextRange textExcludingSpaces,
+                 TextRange text,
+                 TextRange textIncludingNewLines,
+                 ClusterRange clusters,
+                 ClusterRange clustersWithGhosts,
+                 SkScalar widthWithSpaces,
+                 SkVector offset,
+                 SkVector advance,
+                 InternalLineMetrics sizes,
+                 bool addEllipsis);
 
     SkSpan<const char> text() const { return SkSpan<const char>(fText.c_str(), fText.size()); }
     InternalState state() const { return fState; }

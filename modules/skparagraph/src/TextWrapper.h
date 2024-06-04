@@ -167,21 +167,7 @@ public:
          fExceededMaxLines = false;
     }
 
-    using AddLineToParagraph = std::function<void(TextRange textExcludingSpaces,
-                                                  TextRange text,
-                                                  TextRange textIncludingNewlines,
-                                                  ClusterRange clusters,
-                                                  ClusterRange clustersWithGhosts,
-                                                  SkScalar AddLineToParagraph,
-                                                  size_t startClip,
-                                                  size_t endClip,
-                                                  SkVector offset,
-                                                  SkVector advance,
-                                                  InternalLineMetrics metrics,
-                                                  bool addEllipsis)>;
-    void breakTextIntoLines(ParagraphImpl* parent,
-                            SkScalar maxWidth,
-                            const AddLineToParagraph& addLine);
+    void breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth);
 
     SkScalar height() const { return fHeight; }
     SkScalar minIntrinsicWidth() const { return fMinIntrinsicWidth; }
