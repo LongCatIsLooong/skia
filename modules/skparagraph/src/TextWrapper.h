@@ -162,7 +162,6 @@ class TextWrapper {
 
 public:
     TextWrapper() {
-         fLineNumber = 1;
          fHardLineBreak = false;
          fExceededMaxLines = false;
     }
@@ -179,7 +178,6 @@ private:
     TextStretch fClusters;
     TextStretch fClip;
     TextStretch fEndLine;
-    size_t fLineNumber;
     bool fTooLongWord;
     bool fTooLongCluster;
 
@@ -200,7 +198,7 @@ private:
     }
 
     void lookAhead(SkScalar maxWidth, Cluster* endOfClusters, bool applyRoundingHack);
-    void moveForward(bool hasEllipsis);
+    bool moveForward(SkScalar maxWidth, Cluster* endOfClusters, ParagraphImpl* parent);
     void trimEndSpaces(TextAlign align);
     std::tuple<Cluster*, size_t, SkScalar> trimStartSpaces(Cluster* endOfClusters);
     SkScalar getClustersTrimmedWidth();

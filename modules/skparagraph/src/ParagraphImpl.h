@@ -126,11 +126,11 @@ public:
                  TextRange textIncludingNewLines,
                  ClusterRange clusters,
                  ClusterRange clustersWithGhosts,
+                 SkScalar maxWidth,
                  SkScalar widthWithSpaces,
                  SkVector offset,
                  SkVector advance,
-                 InternalLineMetrics sizes,
-                 bool addEllipsis);
+                 InternalLineMetrics sizes);
 
     SkSpan<const char> text() const { return SkSpan<const char>(fText.c_str(), fText.size()); }
     InternalState state() const { return fState; }

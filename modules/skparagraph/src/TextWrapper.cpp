@@ -50,7 +50,6 @@ struct LineBreakerWithLittleRounding {
 // Since we allow cluster clipping when they don't fit
 // we have to work with stretches - parts of clusters
 void TextWrapper::lookAhead(SkScalar maxWidth, Cluster* endOfClusters, bool applyRoundingHack) {
-
     reset();
     fEndLine.metrics().clean();
     fWords.startFrom(fEndLine.startCluster(), fEndLine.startPos());
@@ -62,7 +61,6 @@ void TextWrapper::lookAhead(SkScalar maxWidth, Cluster* endOfClusters, bool appl
     for (auto cluster = fEndLine.endCluster(); cluster < endOfClusters; ++cluster) {
         if (cluster->isHardBreak()) {
         } else if (
-                // TODO: Trying to deal with flutter rounding problem. Must be removed...
                 SkScalar width = fWords.width() + fClusters.width() + cluster->width();
                 breaker.breakLine(width)) {
             if (cluster->isWhitespaceBreak()) {
@@ -178,26 +176,28 @@ void TextWrapper::lookAhead(SkScalar maxWidth, Cluster* endOfClusters, bool appl
     }
 }
 
-void TextWrapper::moveForward(bool hasEllipsis) {
-
+// Returns false when the last cluster is incorporated into fEndLine. This method
+// returning false does not necessarily indicate that fEndLine will be the last
+// line, as it could end with a hard break in which case an additional empty line
+// has to be created.
+bool TextWrapper::moveForward(SkScalar maxWidth, Cluster* endOfClusters, ParagraphImpl* parent) {
+    if (fEndLine.endCluster() == endOfClusters) {
+        return false;
+    }
+    lookAhead(maxWidth, endOfClusters, parent->getApplyRoundingHack());
     // We normally break lines by words.
-    // The only way we may go to clusters is if the word is too long or
-    // it's the first word and it has an ellipsis attached to it.
+    // The only way we may go to clusters is if the word is too long
     // If nothing fits we show the clipping.
     if (!fWords.empty()) {
         fEndLine.extend(fWords);
-#ifdef SK_IGNORE_SKPARAGRAPH_ELLIPSIS_FIX
-        if (!fTooLongWord || hasEllipsis) { // Ellipsis added to a word
-#else
-        if (!fTooLongWord && !hasEllipsis) { // Ellipsis added to a grapheme
-#endif
-            return;
+        if (!fTooLongWord) {
+            return true;
         }
     }
     if (!fClusters.empty()) {
         fEndLine.extend(fClusters);
         if (!fTooLongCluster) {
-            return;
+            return true;
         }
     }
 
@@ -205,6 +205,7 @@ void TextWrapper::moveForward(bool hasEllipsis) {
         // Flutter: forget the clipped cluster but keep the metrics
         fEndLine.metrics().add(fClip.metrics());
     }
+    return true;
 }
 
 // Special case for start/end cluster since they can be clipped
@@ -286,43 +287,27 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
     auto maxLines = parent->paragraphStyle().getMaxLines();
     auto align = parent->paragraphStyle().effective_align();
     auto unlimitedLines = maxLines == std::numeric_limits<size_t>::max();
-    auto endlessLine = !SkIsFinite(maxWidth);
     auto hasEllipsis = parent->paragraphStyle().ellipsized();
 
     auto disableFirstAscent = parent->paragraphStyle().getTextHeightBehavior() & TextHeightBehavior::kDisableFirstAscent;
     auto disableLastDescent = parent->paragraphStyle().getTextHeightBehavior() & TextHeightBehavior::kDisableLastDescent;
-    bool firstLine = true; // We only interested in fist line if we have to disable the first ascent
 
     SkScalar softLineMaxIntrinsicWidth = 0;
     fEndLine = TextStretch(span.begin(), span.begin(), parent->strutForceHeight());
     auto end = span.end() - 1;
     auto start = span.begin();
     InternalLineMetrics maxRunMetrics;
-    bool needEllipsis = false;
-    while (fEndLine.endCluster() != end) {
+    size_t lineNumber = 0;
 
-        this->lookAhead(maxWidth, end, parent->getApplyRoundingHack());
-
-        auto lastLine = (hasEllipsis && unlimitedLines) || fLineNumber >= maxLines;
-        needEllipsis = hasEllipsis && !endlessLine && lastLine;
-
-        this->moveForward(needEllipsis);
-        needEllipsis &= fEndLine.endCluster() < end - 1; // Only if we have some text to ellipsize
-
+    while (moveForward(maxWidth, end, parent)) {
         // Do not trim end spaces on the naturally last line of the left aligned text
-        this->trimEndSpaces(align);
+        trimEndSpaces(align);
 
         // For soft line breaks add to the line all the spaces next to it
         Cluster* startLine;
         size_t pos;
         SkScalar widthWithSpaces;
         std::tie(startLine, pos, widthWithSpaces) = this->trimStartSpaces(end);
-
-        if (needEllipsis && !fHardLineBreak) {
-            // This is what we need to do to preserve a space before the ellipsis
-            fEndLine.restoreBreak();
-            widthWithSpaces = fEndLine.widthWithGhostSpaces();
-        }
 
         // If the line is empty with the hard line break, let's take the paragraph font (flutter???)
         if (fEndLine.metrics().isClean()) {
@@ -361,9 +346,10 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
         ClusterRange clusters(fEndLine.startCluster() - start, fEndLine.endCluster() - start + 1);
         ClusterRange clustersWithGhosts(fEndLine.startCluster() - start, startLine - start);
 
-        if (disableFirstAscent && firstLine) {
+        if (disableFirstAscent && lineNumber == 0) {
             fEndLine.metrics().fAscent = fEndLine.metrics().fRawAscent;
         }
+        const auto lastLine = fEndLine.endCluster() == end || lineNumber + 1 >= maxLines;
         if (disableLastDescent && (lastLine || (startLine == end && !fHardLineBreak ))) {
             fEndLine.metrics().fDescent = fEndLine.metrics().fRawDescent;
         }
@@ -374,7 +360,6 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
         }
 
         SkScalar lineHeight = fEndLine.metrics().height();
-        firstLine = false;
 
         if (fEndLine.empty()) {
             // Correct text and clusters (make it empty for an empty line)
@@ -387,11 +372,12 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
 
         parent->addLine(textExcludingSpaces,
                         text,
-                        textIncludingNewlines, clusters, clustersWithGhosts, widthWithSpaces,
+                        textIncludingNewlines, clusters, clustersWithGhosts,
+                        maxWidth,
+                        widthWithSpaces,
                         SkVector::Make(0, fHeight),
                         SkVector::Make(fEndLine.width(), lineHeight),
-                        fEndLine.metrics(),
-                        needEllipsis && !fHardLineBreak);
+                        fEndLine.metrics());
 
         softLineMaxIntrinsicWidth += widthWithSpaces;
 
@@ -416,10 +402,7 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
         } else if (lastLine) {
             // There is nothing more to draw
             fHardLineBreak = false;
-            break;
         }
-
-        ++fLineNumber;
     }
 
     // We finished formatting the text but we need to scan the rest for some numbers
@@ -486,11 +469,11 @@ void TextWrapper::breakTextIntoLines(ParagraphImpl* parent, SkScalar maxWidth) {
                         fEndLine.endCluster()->textRange(),
                         clusters,
                         clusters,
+                        maxWidth,
                         0,
                         SkVector::Make(0, fHeight),
                         SkVector::Make(0, fEndLine.metrics().height()),
-                        fEndLine.metrics(),
-                        needEllipsis);
+                        fEndLine.metrics());
         fHeight += fEndLine.metrics().height();
         parent->lines().back().setMaxRunMetrics(maxRunMetrics);
     }

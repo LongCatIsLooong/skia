@@ -625,12 +625,13 @@ void ParagraphImpl::breakShapedTextIntoLines(SkScalar maxWidth) {
 
             clusterRange,
             clusterRangeWithGhosts,
+
+            maxWidth,
             run.advance().x(),
 
             SkPoint::Make(0, 0),
             advance,
-            metrics,
-            false);
+            metrics);
 
         fLongestLine = nearlyZero(advance.fX) ? run.advance().fX : advance.fX;
         fHeight = advance.fY;
@@ -760,19 +761,23 @@ void ParagraphImpl::addLine(TextRange textExcludingSpaces,
                             TextRange textIncludingNewLines,
                             ClusterRange clusters,
                             ClusterRange clustersWithGhosts,
+                            SkScalar maxWidth,
                             SkScalar widthWithSpaces,
                             SkVector offset,
                             SkVector advance,
-                            InternalLineMetrics sizes,
-                            bool addEllipsis) {
+                            InternalLineMetrics sizes) {
     // Define a list of styles that covers the line
     auto blocks = findAllBlocks(textExcludingSpaces);
     fLongestLine = std::max(fLongestLine, nearlyZero(advance.fX) ? widthWithSpaces : advance.fX);
+
+    // Ellpsize if needed.
+
+
     auto line = TextLine(this, offset, advance, blocks,
                         textExcludingSpaces, text, textIncludingNewLines,
                         clusters, clustersWithGhosts, widthWithSpaces, sizes);
-    if (addEllipsis) {
-        line.createEllipsis(fWidth, this->getEllipsis(), true);
+    if (true) {
+        line.createEllipsis(maxWidth, this->getEllipsis(), true);
     }
     fLines.emplace_back(std::move(line));
 }
